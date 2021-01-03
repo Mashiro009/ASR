@@ -2,7 +2,7 @@ from scipy.stats import multivariate_normal  # 生成多维概率分布的方法
 import numpy as np
 
 class GaussianMixtureModel:
-    def __init__(self,numberOfCluster = 1, maxIterTimes=100 , regCovar: float = 1e-06):
+    def __init__(self,numberOfCluster = 1, maxIterTimes=2 , regCovar: float = 1e-04):
         self.means = None # 高斯簇的均值
         self.covs = None # 高斯簇的协方差矩阵
         self.weights = None # 高斯簇的权重
@@ -24,7 +24,7 @@ class GaussianMixtureModel:
         # 初始化协方差
         self.covs = np.zeros((self.numberOfCluster,featureDim,featureDim))
         for index in range(self.numberOfCluster):
-            np.fill_diagonal(self.covs[index],1)
+            np.fill_diagonal(self.covs[index],20)
 
         # 初始化权重
         self.weights = np.ones(self.numberOfCluster) / self.numberOfCluster
@@ -36,18 +36,24 @@ class GaussianMixtureModel:
             # 求各个vector对每个cluster的概率
             for index in range(self.numberOfCluster):
                 self.covs[index] += self.regCovar # 防止出现奇异矩阵
+                testA = np.linalg.det(self.covs[index])
                 gmm = multivariate_normal(mean=self.means[index],cov=self.covs[index])
-
+                temp = gmm.pdf([10]*39)
                 # ##### E-step 计算概率密度 #####
                 # 计算X在各簇的概率密度
                 PMatrix[:,index] = self.weights[index] * gmm.pdf(X_Train)
+                # print(“------概率密度-------\n”,gmm.pdf(X_Train),“\n------概率密度-------\n”)
 
             # 计算各vector在该GMM中出现的总概率密度
             totalPro = PMatrix.sum(axis=1) # shape (numFrame,)
             # 如果vector在各簇的概率密度均为0 那么等分配
-            totalPro[totalPro == 0] = 1 / self.numberOfCluster
+            for index in range(totalPro.shape[0]):
+                if totalPro[index] == 0:
+                    PMatrix[index] = [1] * self.numberOfCluster
+            totalPro[totalPro == 0] = self.numberOfCluster
             totalPro = np.expand_dims(totalPro,axis=1) # shape (numFrame,1)
             PMatrix /= totalPro
+
             # ##### E-step 计算概率密度 end #####
 
 
@@ -59,7 +65,7 @@ class GaussianMixtureModel:
                 self.weights[index] = frequency / numFrame
                 # reshape 中 -1为缺省值 reshape(-1,1)即不管第axis=0维有多少个，第axis=1维必须只有一个
                 # 新均值
-                self.means[index] = np.sum( X_Train * PMatrix[:index].reshape(-1,1) , axis=0 ) * (1 / frequency)
+                self.means[index] = np.sum( X_Train * PMatrix[:,index].reshape(-1,1) , axis=0 ) * (1 / frequency)
                 self.covs[index] = np.dot( ( PMatrix[:,index].reshape(-1,1)  * (X_Train - self.means[index]) ).T ,
                                            (X_Train - self.means[index]) ) + self.regCovar
 
@@ -79,6 +85,8 @@ class GaussianMixtureModel:
         PMatrix = np.zeros((1, self.numberOfCluster))
         for gmmIndex in range(self.numberOfCluster):
             g = multivariate_normal(mean=self.means[gmmIndex], cov=self.covs[gmmIndex])
+            # print(g.mean,g.cov,g.rvs())
+            # print(self.weights[gmmIndex] * g.pdf(vector))
             PMatrix[:, gmmIndex] = self.weights[gmmIndex] * g.pdf(vector)
         return np.sum(PMatrix, axis=1)
 

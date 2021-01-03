@@ -3,7 +3,7 @@ import numpy as np
 from GMM import GaussianMixtureModel
 
 class HiddenMarkovModel:
-    def __init__(self,numOfState=3):
+    def __init__(self,numOfState=3,gmmNumberOfCluster=4):
         # state 数目
         self.numOfState = numOfState
         # π初始概率
@@ -17,7 +17,7 @@ class HiddenMarkovModel:
         # GMM 混合高斯模型 b
         self.gmms = []
         for i in range(self.numOfState):
-            self.gmms.append(GaussianMixtureModel())
+            self.gmms.append(GaussianMixtureModel(numberOfCluster=gmmNumberOfCluster))
 
         # ?
         # alpha表
@@ -135,9 +135,9 @@ class HiddenMarkovModel:
         # ##### 计算epsilon #####
         epsilon = np.zeros((numFrame,self.numOfState+1,self.numOfState+1))
         for t in range(numFrame-1):
-            for i in range(self.numOfState):
+            for i in range(self.numOfState-1):
                 for j in range(i,i+2):
-                    gmm = self.gmms[stateIndex]
+                    gmm = self.gmms[j]
                     nowPro = gmm.getPro(X_Train[t+1])
                     epsilon[t,i,j] = alpha[t,i] * self.transition[self.getTransitionIndex(i,j)] * nowPro * beta[t,j] / observationPro
         # ##### 计算epsilon end #####
@@ -163,18 +163,18 @@ class HiddenMarkovModel:
             z = np.zeros((self.gmms[stateIndex].numberOfCluster,featureDim))
             # z = np.sum( gamma_k[:,stateIndex,:] * X_Train ,axis= 0) # 不知道写的对不对
             for gIndex in range(self.gmms[stateIndex].numberOfCluster):
-                z[gIndex] = np.sum(X_Train * gamma_k[:,stateIndex,gIndex] ,axis=0)
-            self.gmms[stateIndex].means = z / x
+                z[gIndex] = np.sum(X_Train * gamma_k[:,stateIndex,gIndex].reshape(-1,1) ,axis=0)
+            self.gmms[stateIndex].means = z / x.reshape(-1,1)
             z1 = np.zeros((self.gmms[stateIndex].numberOfCluster,featureDim,featureDim))
             for gIndex in range(self.gmms[stateIndex].numberOfCluster):
                 z1[gIndex] = np.sum(np.dot(
-                    (gamma_k[:,stateIndex,gIndex] * (X_Train - self.gmms[stateIndex].means[gIndex]) ).T ,
+                    (gamma_k[:,stateIndex,gIndex].reshape(-1,1) * (X_Train - self.gmms[stateIndex].means[gIndex]) ).T ,
                     (X_Train - self.gmms[stateIndex].means[gIndex]))
                     ,axis=0)
-            self.gmms[stateIndex].covs = (z1/x) + self.gmms[stateIndex].regCovar
+            self.gmms[stateIndex].covs = (z1/x.reshape(-1,1,1)) + self.gmms[stateIndex].regCovar
         # ##### M-step end #####
 
-
+        # wait = 0 # 用来打断点的
 
 
 
